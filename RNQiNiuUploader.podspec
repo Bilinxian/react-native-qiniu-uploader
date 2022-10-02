@@ -4,6 +4,7 @@ Pod::Spec.new do |s|
 
    s.name          = "RNQiniuUploader"
    s.version       = package['version']
+   s.authors       = package['author']
    s.summary       = package['description']
    s.homepage      = "https://github.com/midas-gufei/react-native-qiniu-uploader#readme"
    s.license       = "MIT"
