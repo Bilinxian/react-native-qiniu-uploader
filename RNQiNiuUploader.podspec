@@ -13,5 +13,5 @@ Pod::Spec.new do |s|
    s.source_files  = "ios/**/*.{h,m}"
 
    s.dependency 'React-Core'
-   s.dependency 'Qiniu', '~> 7.1.5'
+   s.dependency 'Qiniu', '~> 8.3.2'
  end
