@@ -21,6 +21,7 @@ import com.qiniu.android.common.FixedZone;
 import com.qiniu.android.common.Zone;
 import com.qiniu.android.http.ResponseInfo;
 import com.qiniu.android.storage.Configuration;
+import com.qiniu.android.storage.FileRecorder;
 import com.qiniu.android.storage.KeyGenerator;
 import com.qiniu.android.storage.Recorder;
 import com.qiniu.android.storage.UpCancellationSignal;
@@ -28,7 +29,6 @@ import com.qiniu.android.storage.UpCompletionHandler;
 import com.qiniu.android.storage.UpProgressHandler;
 import com.qiniu.android.storage.UploadManager;
 import com.qiniu.android.storage.UploadOptions;
-import com.qiniu.android.storage.persistent.FileRecorder;
 
 import org.json.JSONObject;
 
@@ -174,6 +174,11 @@ public class QiniuModule extends ReactContextBaseJavaModule {
                 // 不必使用url_safe_base64转换，uploadManager内部会处理
                 // 该返回值可替换为基于key、文件内容、上下文的其它信息生成的文件名
                 return key + "_._" + new StringBuffer(file.getAbsolutePath()).reverse();
+            }
+
+            @Override
+            public String gen(String key, String sourceId) {
+                return null;
             }
         };
         Configuration config = new Configuration.Builder()
