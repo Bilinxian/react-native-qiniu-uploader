@@ -1,4 +1,4 @@
-package cn.cainiaoshicai.crm.qiniu.utils;
+package cn.cainiaoshicai.qiniu.utils;
 
 import android.os.Environment;
 
@@ -14,7 +14,7 @@ public class FileUtil {
 
     private String TAG = this.getClass().getSimpleName();
 
-    private static final String PACKAGE_NAME = "cn.cainiaoshicai.crm/";
+    private static final String PACKAGE_NAME = "cn.cainiaoshicai.qiniu/";
     private static final String DATA_DIRECTORY = "/data/" + PACKAGE_NAME;
     private static final String SDCARD_DIRECTORY = "/Android" + DATA_DIRECTORY;
 

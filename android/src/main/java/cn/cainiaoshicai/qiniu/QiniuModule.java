@@ -1,4 +1,4 @@
-package cn.cainiaoshicai.crm.qiniu;
+package cn.cainiaoshicai.qiniu;
 
 import android.annotation.SuppressLint;
 import android.net.Uri;
@@ -14,9 +14,9 @@ import com.facebook.react.bridge.ReactMethod;
 import com.facebook.react.bridge.ReadableMap;
 import com.facebook.react.bridge.WritableMap;
 import com.facebook.react.modules.core.DeviceEventManagerModule;
-import cn.cainiaoshicai.crm.qiniu.interfacev1.IQNEngineEventHandler;
-import cn.cainiaoshicai.crm.qiniu.utils.ContentUriUtil;
-import cn.cainiaoshicai.crm.qiniu.utils.FileUtil;
+import cn.cainiaoshicai.qiniu.interfacev1.IQNEngineEventHandler;
+import cn.cainiaoshicai.qiniu.utils.ContentUriUtil;
+import cn.cainiaoshicai.qiniu.utils.FileUtil;
 import com.qiniu.android.common.FixedZone;
 import com.qiniu.android.common.Zone;
 import com.qiniu.android.http.ResponseInfo;
@@ -35,17 +35,17 @@ import org.json.JSONObject;
 import java.io.File;
 
 import static com.facebook.react.bridge.UiThreadUtil.runOnUiThread;
-import static cn.cainiaoshicai.crm.qiniu.utils.AppConstant.CODE;
-import static cn.cainiaoshicai.crm.qiniu.utils.AppConstant.MSG;
-import static cn.cainiaoshicai.crm.qiniu.utils.AppConstant.ON_COMPLETE;
-import static cn.cainiaoshicai.crm.qiniu.utils.AppConstant.ON_ERROR;
-import static cn.cainiaoshicai.crm.qiniu.utils.AppConstant.ON_PROGRESS;
-import static cn.cainiaoshicai.crm.qiniu.utils.AppConstant.PERCENT;
-import static cn.cainiaoshicai.crm.qiniu.utils.AppConstant.QN_EVENT;
-import static cn.cainiaoshicai.crm.qiniu.utils.AppConstant.TASK_ID;
-import static cn.cainiaoshicai.crm.qiniu.utils.AppConstant.TYPE;
-import static cn.cainiaoshicai.crm.qiniu.utils.AppConstant.kFail;
-import static cn.cainiaoshicai.crm.qiniu.utils.AppConstant.kSuccess;
+import static cn.cainiaoshicai.qiniu.utils.AppConstant.CODE;
+import static cn.cainiaoshicai.qiniu.utils.AppConstant.MSG;
+import static cn.cainiaoshicai.qiniu.utils.AppConstant.ON_COMPLETE;
+import static cn.cainiaoshicai.qiniu.utils.AppConstant.ON_ERROR;
+import static cn.cainiaoshicai.qiniu.utils.AppConstant.ON_PROGRESS;
+import static cn.cainiaoshicai.qiniu.utils.AppConstant.PERCENT;
+import static cn.cainiaoshicai.qiniu.utils.AppConstant.QN_EVENT;
+import static cn.cainiaoshicai.qiniu.utils.AppConstant.TASK_ID;
+import static cn.cainiaoshicai.qiniu.utils.AppConstant.TYPE;
+import static cn.cainiaoshicai.qiniu.utils.AppConstant.kFail;
+import static cn.cainiaoshicai.qiniu.utils.AppConstant.kSuccess;
 
 /**
  * QiniuModule

@@ -1,4 +1,4 @@
-package cn.cainiaoshicai.crm.qiniu;
+package cn.cainiaoshicai.qiniu;
 
 import com.facebook.react.ReactPackage;
 import com.facebook.react.bridge.NativeModule;

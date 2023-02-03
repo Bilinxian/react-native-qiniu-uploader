@@ -1,4 +1,4 @@
-package cn.cainiaoshicai.crm.qiniu.interfacev1;
+package cn.cainiaoshicai.qiniu.interfacev1;
 
 /**
  * IQNEngineEventHandler
