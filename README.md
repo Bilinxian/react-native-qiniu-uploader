@@ -22,7 +22,7 @@
  
  - app/build.gradle 文件中新增：
  ```
- compile 'com.qiniu:qiniu-android-sdk:7.3.+'
+ implementation 'com.qiniu:qiniu-android-sdk:7.3.15'
  ```
  - proguard-rules.pro 文件中新增混淆：
  ``` 
@@ -40,7 +40,7 @@
 
 - 拷贝 ios/RCTQiniu 文件夹下的所有文件至项目 ios/ios_proj_name/ 根目录
 - cd rn_proj_name/ios/，执行 Pod init，生成 Podfile 和 Podfile.lock
-- 打开 Podfile，添加 pod "Qiniu", "~> 7.1.5"
+- 打开 Podfile，添加 pod "Qiniu", "~> 8.3.2"
 - 执行 Pod install
 
 ```

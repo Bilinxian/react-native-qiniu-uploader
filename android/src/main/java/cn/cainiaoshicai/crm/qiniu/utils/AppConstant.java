@@ -1,4 +1,4 @@
-package com.learnta.qiniu.utils;
+package cn.cainiaoshicai.crm.qiniu.utils;
 
 /**
  * AppConstant

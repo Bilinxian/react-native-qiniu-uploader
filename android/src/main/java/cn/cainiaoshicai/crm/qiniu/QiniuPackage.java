@@ -1,4 +1,4 @@
-package com.learnta.qiniu;
+package cn.cainiaoshicai.crm.qiniu;
 
 import com.facebook.react.ReactPackage;
 import com.facebook.react.bridge.NativeModule;

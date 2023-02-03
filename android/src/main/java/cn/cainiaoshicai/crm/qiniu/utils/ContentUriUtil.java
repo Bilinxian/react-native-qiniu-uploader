@@ -1,4 +1,4 @@
-package com.learnta.qiniu.utils;
+package cn.cainiaoshicai.crm.qiniu.utils;
 
 import android.content.ContentUris;
 import android.content.Context;
