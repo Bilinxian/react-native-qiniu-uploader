@@ -271,7 +271,15 @@ public class QiniuModule extends ReactContextBaseJavaModule {
                     }
                 }));
     }
+    @ReactMethod
+    public void addListener(String eventName) {
+      // Keep: Required for RN built in Event Emitter Calls.
+    }
 
+    @ReactMethod
+    public void removeListeners(Integer count) {
+      // Keep: Required for RN built in Event Emitter Calls.
+    }
     private void commonEvent(WritableMap map) {
         map.putString(TASK_ID, id);
         sendEvent(getReactApplicationContext(), QN_EVENT, map);
