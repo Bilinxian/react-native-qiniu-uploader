@@ -1,40 +1,5 @@
 package cn.cainiaoshicai.qiniu;
 
-import android.annotation.SuppressLint;
-import android.net.Uri;
-import androidx.annotation.Nullable;
-import android.text.TextUtils;
-import android.util.Log;
-
-import com.facebook.react.bridge.Arguments;
-import com.facebook.react.bridge.ReactApplicationContext;
-import com.facebook.react.bridge.ReactContext;
-import com.facebook.react.bridge.ReactContextBaseJavaModule;
-import com.facebook.react.bridge.ReactMethod;
-import com.facebook.react.bridge.ReadableMap;
-import com.facebook.react.bridge.WritableMap;
-import com.facebook.react.modules.core.DeviceEventManagerModule;
-import cn.cainiaoshicai.qiniu.interfacev1.IQNEngineEventHandler;
-import cn.cainiaoshicai.qiniu.utils.ContentUriUtil;
-import cn.cainiaoshicai.qiniu.utils.FileUtil;
-import com.qiniu.android.common.FixedZone;
-import com.qiniu.android.common.Zone;
-import com.qiniu.android.http.ResponseInfo;
-import com.qiniu.android.storage.Configuration;
-import com.qiniu.android.storage.FileRecorder;
-import com.qiniu.android.storage.KeyGenerator;
-import com.qiniu.android.storage.Recorder;
-import com.qiniu.android.storage.UpCancellationSignal;
-import com.qiniu.android.storage.UpCompletionHandler;
-import com.qiniu.android.storage.UpProgressHandler;
-import com.qiniu.android.storage.UploadManager;
-import com.qiniu.android.storage.UploadOptions;
-
-import org.json.JSONObject;
-
-import java.io.File;
-
-import static com.facebook.react.bridge.UiThreadUtil.runOnUiThread;
 import static cn.cainiaoshicai.qiniu.utils.AppConstant.CODE;
 import static cn.cainiaoshicai.qiniu.utils.AppConstant.MSG;
 import static cn.cainiaoshicai.qiniu.utils.AppConstant.ON_COMPLETE;
@@ -46,6 +11,38 @@ import static cn.cainiaoshicai.qiniu.utils.AppConstant.TASK_ID;
 import static cn.cainiaoshicai.qiniu.utils.AppConstant.TYPE;
 import static cn.cainiaoshicai.qiniu.utils.AppConstant.kFail;
 import static cn.cainiaoshicai.qiniu.utils.AppConstant.kSuccess;
+import static com.facebook.react.bridge.UiThreadUtil.runOnUiThread;
+
+import java.io.File;
+
+import com.facebook.react.bridge.Arguments;
+import com.facebook.react.bridge.ReactApplicationContext;
+import com.facebook.react.bridge.ReactContext;
+import com.facebook.react.bridge.ReactContextBaseJavaModule;
+import com.facebook.react.bridge.ReactMethod;
+import com.facebook.react.bridge.ReadableMap;
+import com.facebook.react.bridge.WritableMap;
+import com.facebook.react.modules.core.DeviceEventManagerModule;
+import com.qiniu.android.common.FixedZone;
+import com.qiniu.android.common.Zone;
+import com.qiniu.android.storage.Configuration;
+import com.qiniu.android.storage.FileRecorder;
+import com.qiniu.android.storage.GlobalConfiguration;
+import com.qiniu.android.storage.KeyGenerator;
+import com.qiniu.android.storage.Recorder;
+import com.qiniu.android.storage.UpCancellationSignal;
+import com.qiniu.android.storage.UpCompletionHandler;
+import com.qiniu.android.storage.UpProgressHandler;
+import com.qiniu.android.storage.UploadManager;
+import com.qiniu.android.storage.UploadOptions;
+
+import android.annotation.SuppressLint;
+import android.net.Uri;
+import android.text.TextUtils;
+import androidx.annotation.Nullable;
+import cn.cainiaoshicai.qiniu.interfacev1.IQNEngineEventHandler;
+import cn.cainiaoshicai.qiniu.utils.ContentUriUtil;
+import cn.cainiaoshicai.qiniu.utils.FileUtil;
 
 /**
  * QiniuModule
@@ -71,6 +68,15 @@ public class QiniuModule extends ReactContextBaseJavaModule {
     public QiniuModule(ReactApplicationContext reactContext) {
         super(reactContext);
         this.context = reactContext;
+        GlobalConfiguration.getInstance().isDnsOpen = true;
+        GlobalConfiguration.getInstance().udpDnsIpv4Servers = new String[]{
+                "180.76.76.76",   //百度  IPV4 dns服务器
+                "223.5.5.5",      //阿里  IPV4 dns服务器
+                "119.29.29.29",   //腾讯  IPV4 dns服务器
+                "114.114.114.114",//114  IPV4 dns服务器
+                "8.8.8.8"         //谷歌  IPV4 dns服务器
+        };
+        GlobalConfiguration.getInstance().dohEnable = false;
     }
 
     @Override
@@ -240,46 +246,43 @@ public class QiniuModule extends ReactContextBaseJavaModule {
         return pass;
     }
 
+    private final UpCompletionHandler upCompletionHandler = (key, info, response) -> {
+        //res包含hash、key等信息，具体字段取决于上传策略的设置
+        if (info.isOK()) {
+            engineEventHandler.onComplete(kSuccess, "上传成功");
+        } else {
+
+            //如果失败，这里可以把info信息上报自己的服务器，便于后面分析上传错误原因
+            engineEventHandler.onError(String.valueOf(info.statusCode), info.error);
+        }
+    };
+    private final UpProgressHandler upProgressHandler = (key, percent) -> {
+        @SuppressLint("DefaultLocale") String per = String.format("%.2f", percent);
+        engineEventHandler.onProgress(kSuccess, key, per);
+    };
+    private final UpCancellationSignal upCancellationSignal = new UpCancellationSignal() {
+        @Override
+        public boolean isCancelled() {
+            return isTaskPause;
+        }
+    };
+
     private void uploadTask() {
 
-        uploadManager.put(filePath, upKey, upToken,
-                new UpCompletionHandler() {
-                    @Override
-                    public void complete(String key, ResponseInfo info, JSONObject res) {
-                        //res包含hash、key等信息，具体字段取决于上传策略的设置
-                        if (info.isOK()) {
-                            Log.i(TAG, "Upload Success");
-                            engineEventHandler.onComplete(kSuccess, "上传成功");
-                        } else {
-                            Log.i(TAG, "Upload Fail");
-                            Log.i(TAG, key + ",\r\n " + info + ",\r\n " + res);
-                            //如果失败，这里可以把info信息上报自己的服务器，便于后面分析上传错误原因
-                            engineEventHandler.onError(String.valueOf(info.statusCode), info.error);
-                        }
-                    }
-                }, new UploadOptions(null, null, false,
-                        new UpProgressHandler() {
-                            public void progress(String key, double percent) {
-                                Log.i(TAG, key + ": " + percent);
-                                @SuppressLint("DefaultLocale")
-                                String per = String.format("%.2f", percent);
-                                engineEventHandler.onProgress(kSuccess, key, per);
-                            }
-                        }, new UpCancellationSignal() {
-                    public boolean isCancelled() {
-                        return isTaskPause;
-                    }
-                }));
+        uploadManager.put(filePath, upKey, upToken, upCompletionHandler,
+                new UploadOptions(null, null, false, upProgressHandler, upCancellationSignal));
     }
+
     @ReactMethod
     public void addListener(String eventName) {
-      // Keep: Required for RN built in Event Emitter Calls.
+        // Keep: Required for RN built in Event Emitter Calls.
     }
 
     @ReactMethod
     public void removeListeners(Integer count) {
-      // Keep: Required for RN built in Event Emitter Calls.
+        // Keep: Required for RN built in Event Emitter Calls.
     }
+
     private void commonEvent(WritableMap map) {
         map.putString(TASK_ID, id);
         sendEvent(getReactApplicationContext(), QN_EVENT, map);
