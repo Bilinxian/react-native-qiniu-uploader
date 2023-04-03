@@ -18,12 +18,6 @@
  
  ## android 环境配置
  
- - 拷贝 android/RCTQiniu 文件夹下的所有文件至项目 app/src/main/java/com.yourcompany.qiniu/ 根目录
- 
- - app/build.gradle 文件中新增：
- ```
- implementation 'com.qiniu:qiniu-android-sdk:8.4.+'
- ```
  - proguard-rules.pro 文件中新增混淆：
  ``` 
 -keep class com.qiniu.**{*;}
@@ -34,7 +28,6 @@
  - AndroidManifest.xml文件中添加授权：
  ```
  <uses-permission android:name="android.permission.CAMERA" />
- <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"/>
  ```
  ## iOS 环境配置
 
