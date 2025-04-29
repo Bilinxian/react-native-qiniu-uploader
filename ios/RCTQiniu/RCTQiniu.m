@@ -24,32 +24,40 @@
 @property NSString *filePath;
 @property NSString *upKey;
 @property NSString *upToken;
-@property NSInteger fixedZone;
 @property BOOL isTaskPause;
 
 @end
 
 @implementation RCTQiniu
 
+- (instancetype)init
+{
+    self = [super init];
+    if (self) {
+        kQNGlobalConfiguration.isDnsOpen = YES;
+        kQNGlobalConfiguration.connectCheckEnable = YES;
+        kQNGlobalConfiguration.udpDnsEnable = YES;
+        kQNGlobalConfiguration.udpDnsIpv4Servers = @[@"180.76.76.76", @"223.5.5.5", @"114.114.114.114", @"8.8.8.8"];
+        kQNGlobalConfiguration.dohEnable = NO;
+
+    }
+    return self;
+}
+
 @synthesize bridge = _bridge;
 
 RCT_EXPORT_MODULE();
 
-#pragma mark init qiniu sdk
-RCT_EXPORT_METHOD(setParams:(NSDictionary *)options) {
-  self.taskId = options[@"id"];
-  self.filePath = options[@"filePath"];
-  self.upKey = options[@"upKey"];
-  self.upToken = options[@"upToken"];
-  self.fixedZone = [options[@"zone"] integerValue];
-  self.upManager = [[QNUploadManager alloc] initWithConfiguration:[self config]];
-}
-
 #pragma mark start upload file
-RCT_EXPORT_METHOD(startTask) {
-  if ([self checkParams]) {
-    [self uploadTask];
-  }
+RCT_EXPORT_METHOD(startTask:(NSDictionary *)options) {
+    self.taskId = options[@"id"];
+    self.filePath = options[@"filePath"];
+    self.upKey = options[@"upKey"];
+    self.upToken = options[@"upToken"];
+    self.upManager = [[QNUploadManager alloc] initWithConfiguration:[self config]];
+    if ([self checkParams]) {
+        [self uploadTask];
+    }
 }
 
 #pragma mark resume upload task
@@ -67,31 +75,17 @@ RCT_EXPORT_METHOD(pauseTask) {
  * zoneTarget:华东1,华北2,华南3,北美4
  */
 - (QNConfiguration *)config {
-  QNConfiguration *config = nil;
-  config = [QNConfiguration build:^(QNConfigurationBuilder *builder) {
-    //设置断点续传
-    NSError *error;
-    builder.recorder =  [QNFileRecorder fileRecorderWithFolder:[NSTemporaryDirectory() stringByAppendingString:kCacheFolder] error:&error];
-    switch (self.fixedZone) {
-      case 1:
-        // 华东
-        builder.zone = [QNFixedZone zone0];
-        break;
-      case 2:
-        // 华北
-        builder.zone = [QNFixedZone zone1];
-        break;
-      case 3:
-        // 华南
-        builder.zone = [QNFixedZone zone2];
-        break;
-      case 4:
-        // 北美
-        builder.zone = [QNFixedZone zoneNa0];
-        break;
-      default:
-        break;
-    }
+    QNConfiguration *config = [QNConfiguration build:^(QNConfigurationBuilder *builder) {
+        //设置断点续传
+        NSError *error;
+        builder.recorder =  [QNFileRecorder fileRecorderWithFolder:[NSTemporaryDirectory() stringByAppendingString:kCacheFolder] error:&error];
+        builder.zone = [QNAutoZone new];
+        builder.chunkSize = 512 * 1024;
+        builder.timeoutInterval = 120;
+        builder.useConcurrentResumeUpload = YES;
+        builder.putThreshold = 512 * 1024;
+        builder.resumeUploadVersion = QNResumeUploadVersionV2;
+
     }];
     return config;
 }

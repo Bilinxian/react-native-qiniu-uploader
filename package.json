@@ -1,19 +1,19 @@
 {
   "name": "react-native-qiniu-uploader",
-  "version": "1.0.8",
-  "description": "Qiniu uploader",
-  "main": "index.js",
+  "version": "1.1.0",
+  "description": "react native 七牛上传",
+  "main": "index.ts",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/midas-gufei/react-native-qiniu-uploader.git"
+    "url": "git+https://github.com/Bilinxian/react-native-qiniu-uploader.git"
   },
-  "author": "gufei",
+  "author": "Bilinxian",
   "license": "ISC",
   "bugs": {
-    "url": "https://github.com/midas-gufei/react-native-qiniu-uploader/issues"
+    "url": "https://github.com/Bilinxian/react-native-qiniu-uploader/issues"
   },
-  "homepage": "https://github.com/midas-gufei/react-native-qiniu-uploader#readme"
+  "homepage": "https://github.com/Bilinxian/react-native-qiniu-uploader#readme"
 }

@@ -11,7 +11,6 @@ import static cn.cainiaoshicai.qiniu.utils.AppConstant.TASK_ID;
 import static cn.cainiaoshicai.qiniu.utils.AppConstant.TYPE;
 import static cn.cainiaoshicai.qiniu.utils.AppConstant.kFail;
 import static cn.cainiaoshicai.qiniu.utils.AppConstant.kSuccess;
-import static com.facebook.react.bridge.UiThreadUtil.runOnUiThread;
 
 import java.io.File;
 
@@ -23,8 +22,7 @@ import com.facebook.react.bridge.ReactMethod;
 import com.facebook.react.bridge.ReadableMap;
 import com.facebook.react.bridge.WritableMap;
 import com.facebook.react.modules.core.DeviceEventManagerModule;
-import com.qiniu.android.common.FixedZone;
-import com.qiniu.android.common.Zone;
+import com.qiniu.android.common.AutoZone;
 import com.qiniu.android.storage.Configuration;
 import com.qiniu.android.storage.FileRecorder;
 import com.qiniu.android.storage.GlobalConfiguration;
@@ -52,7 +50,7 @@ import cn.cainiaoshicai.qiniu.utils.FileUtil;
  * @createDate 2018/4/20
  * @lastUpdate 2018/4/20
  */
-public class QiniuModule extends ReactContextBaseJavaModule {
+public class QiniuModule extends ReactContextBaseJavaModule implements IQNEngineEventHandler{
 
     private String TAG = this.getClass().getSimpleName();
     private ReactApplicationContext context;
@@ -62,7 +60,6 @@ public class QiniuModule extends ReactContextBaseJavaModule {
     private String filePath;
     private String upKey;
     private String upToken;
-    private int fixedZone;
     private boolean isTaskPause;
 
     public QiniuModule(ReactApplicationContext reactContext) {
@@ -84,69 +81,19 @@ public class QiniuModule extends ReactContextBaseJavaModule {
         return "RCTQiniu";
     }
 
-    private IQNEngineEventHandler engineEventHandler = new IQNEngineEventHandler() {
-
-        @Override
-        public void onProgress(final String code, final String msg, final String percent) {
-            runOnUiThread(new Runnable() {
-                @Override
-                public void run() {
-                    WritableMap map = Arguments.createMap();
-                    map.putString(TYPE, ON_PROGRESS);
-                    map.putString(CODE, code);
-                    map.putString(MSG, msg);
-                    map.putString(PERCENT, percent);
-                    commonEvent(map);
-                }
-            });
-        }
-
-        @Override
-        public void onComplete(final String code, final String msg) {
-            runOnUiThread(new Runnable() {
-                @Override
-                public void run() {
-                    WritableMap map = Arguments.createMap();
-                    map.putString(TYPE, ON_COMPLETE);
-                    map.putString(CODE, code);
-                    map.putString(MSG, msg);
-                    commonEvent(map);
-                }
-            });
-        }
-
-        @Override
-        public void onError(final String code, final String msg) {
-            runOnUiThread(new Runnable() {
-                @Override
-                public void run() {
-                    WritableMap map = Arguments.createMap();
-                    map.putString(TYPE, ON_ERROR);
-                    map.putString(CODE, code);
-                    map.putString(MSG, msg);
-                    commonEvent(map);
-                }
-            });
-        }
-    };
-
     /**
      * 设置待上传文件的参数
      *
      * @param options 上传数据的可选参数
      */
     @ReactMethod
-    public void setParams(final ReadableMap options) {
+    public void startTask(final ReadableMap options) {
         id = options.getString("id");
         filePath = options.getString("filePath");
         upKey = options.getString("upKey");
         upToken = options.getString("upToken");
-        fixedZone = options.getInt("zone");
         this.uploadManager = new UploadManager(config());
-    }
 
-    @ReactMethod
-    public void startTask() {
         if (checkParams()) {
             uploadTask();
         }
@@ -188,33 +135,17 @@ public class QiniuModule extends ReactContextBaseJavaModule {
             }
         };
         Configuration config = new Configuration.Builder()
-                .chunkSize(512 * 1024)        // 分片上传时，每片的大小。 默认256K
-                .connectTimeout(10)           // 链接超时。默认10秒
+                .chunkSize(512 * 1024)        // 分片上传时，每片的大小。 默认512K
+                .connectTimeout(60)           // 链接超时。默认10秒
+                .writeTimeout(120)
+                .responseTimeout(120)          // 服务器响应超时。默认60秒
                 .useHttps(true)               // 是否使用https上传域名
-                .responseTimeout(60)          // 服务器响应超时。默认60秒
                 .recorder(recorder, keyGen)   // recorder分片上传时，已上传片记录器。默认null, keyGen 分片上传时，生成标识符，用于片记录器区分是那个文件的上传记录
-                .zone(fixedZone())// 设置区域，指定不同区域的上传域名、备用域名、备用IP。
+                .zone(new AutoZone())// 设置区域，指定不同区域的上传域名、备用域名、备用IP。
+                .putThreshold(512 * 1024)
+                .allowBackupHost(true)
                 .build();
         return config;
-    }
-
-    private Zone fixedZone() {
-        Zone fixedZone = FixedZone.zone0;
-        switch (this.fixedZone) {
-            case 1:
-                fixedZone = FixedZone.zone0;
-                break;
-            case 2:
-                fixedZone = FixedZone.zone1;
-                break;
-            case 3:
-                fixedZone = FixedZone.zone2;
-                break;
-            case 4:
-                fixedZone = FixedZone.zoneNa0;
-                break;
-        }
-        return fixedZone;
     }
 
     private boolean checkParams() {
@@ -234,7 +165,7 @@ public class QiniuModule extends ReactContextBaseJavaModule {
         }
 
         if (!pass)
-            engineEventHandler.onError(kFail, msg);
+            onError(kFail, msg);
 
         if (pass) {
             if (filePath.startsWith("file://"))
@@ -249,16 +180,16 @@ public class QiniuModule extends ReactContextBaseJavaModule {
     private final UpCompletionHandler upCompletionHandler = (key, info, response) -> {
         //res包含hash、key等信息，具体字段取决于上传策略的设置
         if (info.isOK()) {
-            engineEventHandler.onComplete(kSuccess, "上传成功");
+            onComplete(kSuccess, "上传成功");
         } else {
 
             //如果失败，这里可以把info信息上报自己的服务器，便于后面分析上传错误原因
-            engineEventHandler.onError(String.valueOf(info.statusCode), info.error);
+            onError(String.valueOf(info.statusCode), info.error);
         }
     };
     private final UpProgressHandler upProgressHandler = (key, percent) -> {
         @SuppressLint("DefaultLocale") String per = String.format("%.2f", percent);
-        engineEventHandler.onProgress(kSuccess, key, per);
+        onProgress(kSuccess, key, per);
     };
     private final UpCancellationSignal upCancellationSignal = new UpCancellationSignal() {
         @Override
@@ -294,5 +225,33 @@ public class QiniuModule extends ReactContextBaseJavaModule {
         reactContext
                 .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter.class)
                 .emit(eventName, params);
+    }
+
+    @Override
+    public void onProgress(String code, String msg, String percent) {
+        WritableMap map = Arguments.createMap();
+        map.putString(TYPE, ON_PROGRESS);
+        map.putString(CODE, code);
+        map.putString(MSG, msg);
+        map.putString(PERCENT, percent);
+        commonEvent(map);
+    }
+
+    @Override
+    public void onComplete(String code, String msg) {
+        WritableMap map = Arguments.createMap();
+        map.putString(TYPE, ON_COMPLETE);
+        map.putString(CODE, code);
+        map.putString(MSG, msg);
+        commonEvent(map);
+    }
+
+    @Override
+    public void onError(String code, String msg) {
+        WritableMap map = Arguments.createMap();
+        map.putString(TYPE, ON_ERROR);
+        map.putString(CODE, code);
+        map.putString(MSG, msg);
+        commonEvent(map);
     }
 }
