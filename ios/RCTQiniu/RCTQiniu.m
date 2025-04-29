@@ -1,21 +1,4 @@
-//
-//  RCTQiniu.m
-//  RCTQiniu
-//
-//  Created by gufei on 2018/4/12.
-//  Copyright © 2018年 Facebook. All rights reserved.
-//
-
 #import "RCTQiniu.h"
-
-#import <React/RCTUtils.h>
-#import <React/RCTConvert.h>
-#import <React/RCTEventDispatcher.h>
-#import <AssetsLibrary/AssetsLibrary.h>
-
-#import <QiniuSDK.h>
-
-#import "ConstHeader.h"
 
 @interface RCTQiniu()
 
@@ -43,8 +26,6 @@
     }
     return self;
 }
-
-@synthesize bridge = _bridge;
 
 RCT_EXPORT_MODULE();
 
@@ -91,10 +72,10 @@ RCT_EXPORT_METHOD(pauseTask) {
 }
 
 - (BOOL)checkParams {
-  
+
   BOOL pass = YES;
   NSString *msg = @"";
-  
+
   if (nil == self.filePath || [self.filePath isEqual:[NSNull null]]) {
     msg = @"filePath can not be nil";
     pass = NO;
@@ -105,21 +86,21 @@ RCT_EXPORT_METHOD(pauseTask) {
     msg = @"upToken can not be nil";
     pass = NO;
   }
-  
+
   if (!pass) {
     [self commentEvent:onError code:kFail msg:msg];
   }
-  
+
   if (pass && [self.filePath hasPrefix:@"file://"])
     self.filePath = [self.filePath stringByReplacingOccurrencesOfString:@"file://" withString:@""];
-  
+
   return pass;
 }
 
 - (void)uploadTask {
-  
+
   __weak typeof(self) weakSelf = self;
-  
+
   QNUploadOption *uploadOption = [[QNUploadOption alloc] initWithMime:nil
                                                       progressHandler:^(NSString *key, float percent) {
                                                         __strong typeof(weakSelf) strongSelf = weakSelf;
@@ -167,9 +148,9 @@ RCT_EXPORT_METHOD(pauseTask) {
     [self sendEventWithName:qiniuEvent body:params];
   });
 }
-// RCT必须的方法体，不可删除，否则所有暴露的RCT_EXPORT_METHOD不在主线程执行
-- (dispatch_queue_t)methodQueue {
-    return dispatch_get_main_queue();
+
++ (BOOL)requiresMainQueueSetup {
+    return NO;
 }
 
 @end
