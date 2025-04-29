@@ -27,7 +27,7 @@ type eventParams = {
 interface EmitterParams {
   onComplete?: (event: eventParams) => void; // 根据实际数据结构调整
   onError?: (error: eventParams) => void;
-  onProgress: (event: eventParams) => void
+  onProgress?: (event: eventParams) => void
   // 可以扩展其他事件类型
 }
 
