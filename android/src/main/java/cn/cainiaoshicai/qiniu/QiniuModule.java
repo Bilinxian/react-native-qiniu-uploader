@@ -42,18 +42,10 @@ import cn.cainiaoshicai.qiniu.interfacev1.IQNEngineEventHandler;
 import cn.cainiaoshicai.qiniu.utils.ContentUriUtil;
 import cn.cainiaoshicai.qiniu.utils.FileUtil;
 
-/**
- * QiniuModule
- *
- * @author gufei
- * @version 1.0
- * @createDate 2018/4/20
- * @lastUpdate 2018/4/20
- */
 public class QiniuModule extends ReactContextBaseJavaModule implements IQNEngineEventHandler{
 
     private String TAG = this.getClass().getSimpleName();
-    private ReactApplicationContext context;
+    private final ReactApplicationContext context;
 
     private UploadManager uploadManager;
     private String id;
