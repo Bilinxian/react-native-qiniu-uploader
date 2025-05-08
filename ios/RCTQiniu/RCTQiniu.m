@@ -8,6 +8,7 @@
 @property NSString *upKey;
 @property NSString *upToken;
 @property BOOL isTaskPause;
+@property BOOL hasListener;
 
 @end
 
@@ -28,6 +29,16 @@
 }
 
 RCT_EXPORT_MODULE();
+
+- (void)startObserving
+{
+    _hasListener = YES;
+}
+
+- (void)stopObserving
+{
+    _hasListener = NO;
+}
 
 #pragma mark start upload file
 RCT_EXPORT_METHOD(startTask:(NSDictionary *)options resolve:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject) {
@@ -123,10 +134,10 @@ RCT_EXPORT_METHOD(pauseTask) {
                                                    }];
   [self.upManager putFile:self.filePath key:self.upKey token:self.upToken complete:^(QNResponseInfo *info, NSString *key, NSDictionary *resp) {
     if (info.isOK) {
-        if (resolve == nil) {
-            [self commentEvent:onComplete code:kSuccess msg:@"上传成功"];
-        } else {
+        if (resolve) {
             resolve(@"上传成功");
+        } else {
+            [self commentEvent:onComplete code:kSuccess msg:@"上传成功"];
         }
 
     } else {
@@ -134,10 +145,10 @@ RCT_EXPORT_METHOD(pauseTask) {
       for (NSString *key in info.error.userInfo) {
         [errorStr stringByAppendingString:key];
       }
-        if (reject == nil) {
-            [self commentEvent:onError code:info.statusCode msg:errorStr];
-        } else {
+        if (reject) {
             reject([NSString stringWithFormat:@"%d", info.statusCode], errorStr, nil);
+        } else {
+            [self commentEvent:onError code:info.statusCode msg:errorStr];
         }
 
     }
@@ -162,9 +173,10 @@ RCT_EXPORT_METHOD(pauseTask) {
   params[kTaskId] = self.taskId;
   params[kPercent] = percent;
   NSLog(@"返回commentEvent%@", params );
-  dispatch_async(dispatch_get_main_queue(), ^{
-    [self sendEventWithName:qiniuEvent body:params];
-  });
+  if (_hasListener) {
+      [self sendEventWithName:qiniuEvent body:params];
+  }
+
 }
 
 + (BOOL)requiresMainQueueSetup {

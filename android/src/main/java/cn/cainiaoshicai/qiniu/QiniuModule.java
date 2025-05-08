@@ -113,7 +113,7 @@ public class QiniuModule extends ReactContextBaseJavaModule implements IQNEngine
 
     private Configuration config() {
 
-        String dirPath = FileUtil.getWorkFolder();
+        String dirPath = FileUtil.getWorkFolder(context);
         Recorder recorder = null;
         try {
             recorder = new FileRecorder(dirPath);
