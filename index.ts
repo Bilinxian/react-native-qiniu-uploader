@@ -10,6 +10,7 @@ type uploadParams = {
   filePath: string
   upKey: string
   upToken: string
+  isAsyncTask?: boolean
 }
 
 interface EventType {
@@ -35,8 +36,8 @@ let listener: EmitterSubscription;
 
 export const QNEngine = {
 
-  startTask(params: uploadParams) {
-    Qiniu.startTask(params)
+  startTask(params: uploadParams): Promise<string> {
+    return Qiniu.startTask(params)
   },
   resumeTask() {
     Qiniu.resumeTask()

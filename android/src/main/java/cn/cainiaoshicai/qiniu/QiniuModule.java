@@ -15,6 +15,7 @@ import static cn.cainiaoshicai.qiniu.utils.AppConstant.kSuccess;
 import java.io.File;
 
 import com.facebook.react.bridge.Arguments;
+import com.facebook.react.bridge.Promise;
 import com.facebook.react.bridge.ReactApplicationContext;
 import com.facebook.react.bridge.ReactContext;
 import com.facebook.react.bridge.ReactContextBaseJavaModule;
@@ -37,12 +38,14 @@ import com.qiniu.android.storage.UploadOptions;
 import android.annotation.SuppressLint;
 import android.net.Uri;
 import android.text.TextUtils;
+
 import androidx.annotation.Nullable;
+
 import cn.cainiaoshicai.qiniu.interfacev1.IQNEngineEventHandler;
 import cn.cainiaoshicai.qiniu.utils.ContentUriUtil;
 import cn.cainiaoshicai.qiniu.utils.FileUtil;
 
-public class QiniuModule extends ReactContextBaseJavaModule implements IQNEngineEventHandler{
+public class QiniuModule extends ReactContextBaseJavaModule implements IQNEngineEventHandler {
 
     private String TAG = this.getClass().getSimpleName();
     private final ReactApplicationContext context;
@@ -59,10 +62,10 @@ public class QiniuModule extends ReactContextBaseJavaModule implements IQNEngine
         this.context = reactContext;
         GlobalConfiguration.getInstance().isDnsOpen = true;
         GlobalConfiguration.getInstance().udpDnsIpv4Servers = new String[]{
-                "180.76.76.76",   //百度  IPV4 dns服务器
                 "223.5.5.5",      //阿里  IPV4 dns服务器
                 "119.29.29.29",   //腾讯  IPV4 dns服务器
                 "114.114.114.114",//114  IPV4 dns服务器
+                "180.76.76.76",   //百度  IPV4 dns服务器
                 "8.8.8.8"         //谷歌  IPV4 dns服务器
         };
         GlobalConfiguration.getInstance().dohEnable = false;
@@ -79,22 +82,28 @@ public class QiniuModule extends ReactContextBaseJavaModule implements IQNEngine
      * @param options 上传数据的可选参数
      */
     @ReactMethod
-    public void startTask(final ReadableMap options) {
+    public void startTask(final ReadableMap options, Promise promise) {
         id = options.getString("id");
         filePath = options.getString("filePath");
         upKey = options.getString("upKey");
         upToken = options.getString("upToken");
+        boolean isAsyncTask = options.getBoolean("isAsyncTask");
         this.uploadManager = new UploadManager(config());
 
         if (checkParams()) {
-            uploadTask();
+            if (isAsyncTask)
+                uploadTask(promise);
+            else {
+                uploadTask(null);
+                promise.resolve("");
+            }
         }
     }
 
     @ReactMethod
     public void resumeTask() {
         this.isTaskPause = false;
-        uploadTask();
+        uploadTask(null);
     }
 
     @ReactMethod
@@ -190,10 +199,21 @@ public class QiniuModule extends ReactContextBaseJavaModule implements IQNEngine
         }
     };
 
-    private void uploadTask() {
+    private void uploadTask(Promise promise) {
+        if (promise == null) {
+            uploadManager.put(filePath, upKey, upToken, upCompletionHandler,
+                    new UploadOptions(null, null, false, upProgressHandler, upCancellationSignal));
+            return;
+        }
+        uploadManager.put(filePath, upKey, upToken, (key, info, response) -> {
+            if (info.isOK()) {
+                promise.resolve("上传成功");
+            } else {
+                promise.reject(String.valueOf(info.statusCode), info.error);
+            }
 
-        uploadManager.put(filePath, upKey, upToken, upCompletionHandler,
-                new UploadOptions(null, null, false, upProgressHandler, upCancellationSignal));
+        }, new UploadOptions(null, null, false, (key, percent) -> {
+        }, () -> false));
     }
 
     @ReactMethod

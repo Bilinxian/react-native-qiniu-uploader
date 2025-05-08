@@ -20,7 +20,7 @@
         kQNGlobalConfiguration.isDnsOpen = YES;
         kQNGlobalConfiguration.connectCheckEnable = YES;
         kQNGlobalConfiguration.udpDnsEnable = YES;
-        kQNGlobalConfiguration.udpDnsIpv4Servers = @[@"180.76.76.76", @"223.5.5.5", @"114.114.114.114", @"8.8.8.8"];
+        kQNGlobalConfiguration.udpDnsIpv4Servers = @[@"223.5.5.5",@"119.29.29.29", @"114.114.114.114", @"180.76.76.76", @"8.8.8.8"];
         kQNGlobalConfiguration.dohEnable = NO;
 
     }
@@ -30,21 +30,29 @@
 RCT_EXPORT_MODULE();
 
 #pragma mark start upload file
-RCT_EXPORT_METHOD(startTask:(NSDictionary *)options) {
+RCT_EXPORT_METHOD(startTask:(NSDictionary *)options resolve:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject) {
     self.taskId = options[@"id"];
     self.filePath = options[@"filePath"];
     self.upKey = options[@"upKey"];
     self.upToken = options[@"upToken"];
+    NSNumber *isAsyncTask = options[@"isAsyncTask"];
     self.upManager = [[QNUploadManager alloc] initWithConfiguration:[self config]];
     if ([self checkParams]) {
-        [self uploadTask];
+        if (1 == [isAsyncTask intValue]) {
+            [self uploadTask:resolve rejecter:reject];
+        }
+        else {
+            [self uploadTask:nil rejecter: nil];
+            resolve(@"");
+        }
+
     }
 }
 
 #pragma mark resume upload task
 RCT_EXPORT_METHOD(resumeTask) {
   self.isTaskPause = NO;
-  [self uploadTask];
+  [self uploadTask:nil rejecter:nil];
 }
 
 #pragma mark pause upload task
@@ -97,7 +105,7 @@ RCT_EXPORT_METHOD(pauseTask) {
   return pass;
 }
 
-- (void)uploadTask {
+- (void)uploadTask:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject {
 
   __weak typeof(self) weakSelf = self;
 
@@ -115,13 +123,23 @@ RCT_EXPORT_METHOD(pauseTask) {
                                                    }];
   [self.upManager putFile:self.filePath key:self.upKey token:self.upToken complete:^(QNResponseInfo *info, NSString *key, NSDictionary *resp) {
     if (info.isOK) {
-      [self commentEvent:onComplete code:kSuccess msg:@"上传成功"];
+        if (resolve == nil) {
+            [self commentEvent:onComplete code:kSuccess msg:@"上传成功"];
+        } else {
+            resolve(@"上传成功");
+        }
+
     } else {
       NSString *errorStr = @"";
       for (NSString *key in info.error.userInfo) {
         [errorStr stringByAppendingString:key];
       }
-      [self commentEvent:onError code:info.statusCode msg:errorStr];
+        if (reject == nil) {
+            [self commentEvent:onError code:info.statusCode msg:errorStr];
+        } else {
+            reject([NSString stringWithFormat:@"%d", info.statusCode], errorStr, nil);
+        }
+
     }
   }
                    option:uploadOption];
