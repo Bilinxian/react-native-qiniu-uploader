@@ -87,7 +87,10 @@ public class QiniuModule extends ReactContextBaseJavaModule implements IQNEngine
         filePath = options.getString("filePath");
         upKey = options.getString("upKey");
         upToken = options.getString("upToken");
-        boolean isAsyncTask = options.getBoolean("isAsyncTask");
+        boolean isAsyncTask = false;
+        if (options.hasKey("isAsyncTask")){
+            isAsyncTask = options.getBoolean("isAsyncTask");
+        }
         this.uploadManager = new UploadManager(config());
 
         if (checkParams()) {

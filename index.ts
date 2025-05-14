@@ -37,7 +37,11 @@ let listener: EmitterSubscription;
 export const QNEngine = {
 
   startTask(params: uploadParams): Promise<string> {
-    return Qiniu.startTask(params)
+    const uploadParams = {...params}
+    if (undefined === uploadParams.isAsyncTask) {
+      uploadParams.isAsyncTask = false
+    }
+    return Qiniu.startTask(uploadParams)
   },
   resumeTask() {
     Qiniu.resumeTask()
