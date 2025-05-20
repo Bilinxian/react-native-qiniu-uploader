@@ -60,7 +60,7 @@ public class QiniuModule extends ReactContextBaseJavaModule implements IQNEngine
     public QiniuModule(ReactApplicationContext reactContext) {
         super(reactContext);
         this.context = reactContext;
-        GlobalConfiguration.getInstance().isDnsOpen = true;
+        GlobalConfiguration.getInstance().isDnsOpen = false;
         GlobalConfiguration.getInstance().udpDnsIpv4Servers = new String[]{
                 "223.5.5.5",      //阿里  IPV4 dns服务器
                 "119.29.29.29",   //腾讯  IPV4 dns服务器
