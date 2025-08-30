@@ -1,14 +1,38 @@
 #import "RCTQiniu.h"
 
+@interface UploadTask : NSObject
+
+@property (nonatomic, copy) NSString *taskId;
+@property (nonatomic, copy) NSString *filePath;
+@property (nonatomic, copy) NSString *upKey;
+@property (nonatomic, copy) NSString *upToken;
+@property (nonatomic, assign) BOOL isPaused;
+
+- (instancetype)initWithId:(NSString *)taskId filePath:(NSString *)filePath upKey:(NSString *)upKey upToken:(NSString *)upToken;
+
+@end
+
+@implementation UploadTask
+
+- (instancetype)initWithId:(NSString *)taskId filePath:(NSString *)filePath upKey:(NSString *)upKey upToken:(NSString *)upToken {
+    self = [super init];
+    if (self) {
+        _taskId = taskId;
+        _filePath = filePath;
+        _upKey = upKey;
+        _upToken = upToken;
+        _isPaused = NO;
+    }
+    return self;
+}
+
+@end
+
 @interface RCTQiniu()
 
-@property QNUploadManager *upManager;
-@property NSString *taskId;
-@property NSString *filePath;
-@property NSString *upKey;
-@property NSString *upToken;
-@property BOOL isTaskPause;
-@property BOOL hasListener;
+@property (nonatomic, strong) QNUploadManager *upManager;
+@property (nonatomic, strong) NSMutableDictionary<NSString *, UploadTask *> *taskMap;
+@property (nonatomic, assign) BOOL hasListener;
 
 @end
 
@@ -23,7 +47,7 @@
         kQNGlobalConfiguration.udpDnsEnable = YES;
         kQNGlobalConfiguration.udpDnsIpv4Servers = @[@"223.5.5.5",@"119.29.29.29", @"114.114.114.114", @"180.76.76.76", @"8.8.8.8"];
         kQNGlobalConfiguration.dohEnable = NO;
-
+        _taskMap = [NSMutableDictionary dictionary];
     }
     return self;
 }
@@ -42,33 +66,47 @@ RCT_EXPORT_MODULE();
 
 #pragma mark start upload file
 RCT_EXPORT_METHOD(startTask:(NSDictionary *)options resolve:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject) {
-    self.taskId = options[@"id"];
-    self.filePath = options[@"filePath"];
-    self.upKey = options[@"upKey"];
-    self.upToken = options[@"upToken"];
-    NSNumber *isAsyncTask = options[@"isAsyncTask"];
-    self.upManager = [[QNUploadManager alloc] initWithConfiguration:[self config]];
-    if ([self checkParams]) {
-        if (1 == [isAsyncTask intValue]) {
-            [self uploadTask:resolve rejecter:reject];
-        }
-        else {
-            [self uploadTask:nil rejecter: nil];
+    NSString *taskId = options[@"id"];
+    NSString *filePath = options[@"filePath"];
+    NSString *upKey = options[@"upKey"];
+    NSString *upToken = options[@"upToken"];
+    NSNumber *isAsyncTask = options[@"isAsyncTask"] ?: @0;
+
+    UploadTask *task = [[UploadTask alloc] initWithId:taskId filePath:filePath upKey:upKey upToken:upToken];
+    self.taskMap[taskId] = task;
+
+    if ([self checkParams:task]) {
+        if ([isAsyncTask intValue] == 1) {
+            [self uploadTask:task resolve:resolve rejecter:reject];
+        } else {
+            [self uploadTask:task resolve:nil rejecter:nil];
             resolve(@"");
         }
-
+    } else {
+        reject(@"PARAMS_ERROR", @"参数校验失败", nil);
     }
 }
 
 #pragma mark resume upload task
-RCT_EXPORT_METHOD(resumeTask) {
-  self.isTaskPause = NO;
-  [self uploadTask:nil rejecter:nil];
+RCT_EXPORT_METHOD(resumeTask:(NSString *)taskId) {
+    UploadTask *task = self.taskMap[taskId];
+    if (task) {
+        task.isPaused = NO;
+        [self uploadTask:task resolve:nil rejecter:nil];
+    }
 }
 
 #pragma mark pause upload task
-RCT_EXPORT_METHOD(pauseTask) {
-  self.isTaskPause = YES;
+RCT_EXPORT_METHOD(pauseTask:(NSString *)taskId) {
+    UploadTask *task = self.taskMap[taskId];
+    if (task) {
+        task.isPaused = YES;
+    }
+}
+
+#pragma mark remove upload task
+RCT_EXPORT_METHOD(removeTask:(NSString *)taskId) {
+    [self.taskMap removeObjectForKey:taskId];
 }
 
 /**
@@ -85,75 +123,80 @@ RCT_EXPORT_METHOD(pauseTask) {
         builder.useConcurrentResumeUpload = YES;
         builder.putThreshold = 512 * 1024;
         builder.resumeUploadVersion = QNResumeUploadVersionV2;
-
     }];
     return config;
 }
 
-- (BOOL)checkParams {
+- (BOOL)checkParams:(UploadTask *)task {
+    BOOL pass = YES;
+    NSString *msg = @"";
 
-  BOOL pass = YES;
-  NSString *msg = @"";
+    if (nil == task.filePath || [task.filePath isEqual:[NSNull null]]) {
+        msg = @"filePath can not be nil";
+        pass = NO;
+    } else if (nil == task.upKey || [task.upKey isEqual:[NSNull null]]) {
+        msg = @"upKey can not be nil";
+        pass = NO;
+    } else if (nil == task.upToken || [task.upToken isEqual:[NSNull null]]) {
+        msg = @"upToken can not be nil";
+        pass = NO;
+    }
 
-  if (nil == self.filePath || [self.filePath isEqual:[NSNull null]]) {
-    msg = @"filePath can not be nil";
-    pass = NO;
-  } else if (nil == self.upKey || [self.upKey isEqual:[NSNull null]]) {
-    msg = @"upKey can not be nil";
-    pass = NO;
-  } else if (nil == self.upToken || [self.upToken isEqual:[NSNull null]]) {
-    msg = @"upToken can not be nil";
-    pass = NO;
-  }
+    if (!pass) {
+        [self commentEvent:onError taskId:task.taskId code:kFail msg:msg percent:@""];
+    }
 
-  if (!pass) {
-    [self commentEvent:onError code:kFail msg:msg];
-  }
+    if (pass && [task.filePath hasPrefix:@"file://"]) {
+        task.filePath = [task.filePath stringByReplacingOccurrencesOfString:@"file://" withString:@""];
+    }
 
-  if (pass && [self.filePath hasPrefix:@"file://"])
-    self.filePath = [self.filePath stringByReplacingOccurrencesOfString:@"file://" withString:@""];
-
-  return pass;
+    return pass;
 }
 
-- (void)uploadTask:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject {
+- (void)uploadTask:(UploadTask *)task resolve:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject {
+    __weak typeof(self) weakSelf = self;
+    __weak UploadTask *weakTask = task;
 
-  __weak typeof(self) weakSelf = self;
-
-  QNUploadOption *uploadOption = [[QNUploadOption alloc] initWithMime:nil
+    QNUploadOption *uploadOption = [[QNUploadOption alloc] initWithMime:nil
                                                       progressHandler:^(NSString *key, float percent) {
-                                                        __strong typeof(weakSelf) strongSelf = weakSelf;
-                                                        NSString *per =[NSString stringWithFormat:@"%.2f", percent];
-                                                        [strongSelf commentEvent:onProgress code:kSuccess msg:key percent:per];
-                                                      }
+        __strong typeof(weakSelf) strongSelf = weakSelf;
+        __strong UploadTask *strongTask = weakTask;
+        NSString *per = [NSString stringWithFormat:@"%.2f", percent];
+        [strongSelf commentEvent:onProgress taskId:strongTask.taskId code:kSuccess msg:key percent:per];
+    }
                                                                params:nil
                                                              checkCrc:NO
                                                    cancellationSignal:^BOOL() {
-                                                     __strong typeof(weakSelf) strongSelf = weakSelf;
-                                                     return strongSelf.isTaskPause;
-                                                   }];
-  [self.upManager putFile:self.filePath key:self.upKey token:self.upToken complete:^(QNResponseInfo *info, NSString *key, NSDictionary *resp) {
-    if (info.isOK) {
-        if (resolve) {
-            resolve(@"上传成功");
-        } else {
-            [self commentEvent:onComplete code:kSuccess msg:@"上传成功"];
-        }
+        __strong UploadTask *strongTask = weakTask;
+        return strongTask.isPaused;
+    }];
 
-    } else {
-      NSString *errorStr = @"";
-      for (NSString *key in info.error.userInfo) {
-        [errorStr stringByAppendingString:key];
-      }
-        if (reject) {
-            reject([NSString stringWithFormat:@"%d", info.statusCode], errorStr, nil);
-        } else {
-            [self commentEvent:onError code:info.statusCode msg:errorStr];
-        }
-
+    if (!self.upManager) {
+        self.upManager = [[QNUploadManager alloc] initWithConfiguration:[self config]];
     }
-  }
-                   option:uploadOption];
+
+    [self.upManager putFile:task.filePath key:task.upKey token:task.upToken complete:^(QNResponseInfo *info, NSString *key, NSDictionary *resp) {
+        __strong typeof(weakSelf) strongSelf = weakSelf;
+        __strong UploadTask *strongTask = weakTask;
+
+        if (info.isOK) {
+            if (resolve) {
+                resolve(@"上传成功");
+            } else {
+                [strongSelf commentEvent:onComplete taskId:strongTask.taskId code:kSuccess msg:@"上传成功" percent:@""];
+            }
+        } else {
+            NSString *errorStr = info.error ? info.error.localizedDescription : @"未知错误";
+            if (reject) {
+                reject([NSString stringWithFormat:@"%d", info.statusCode], errorStr, nil);
+            } else {
+                [strongSelf commentEvent:onError taskId:strongTask.taskId code:info.statusCode msg:errorStr percent:@""];
+            }
+        }
+
+        // 上传完成后移除任务（可选）
+        [strongSelf.taskMap removeObjectForKey:strongTask.taskId];
+    } option:uploadOption];
 }
 
 #pragma mark - native to js event method
@@ -161,22 +204,19 @@ RCT_EXPORT_METHOD(pauseTask) {
     return @[qiniuEvent];
 }
 
-- (void)commentEvent:(NSString *)type code:(int)code msg:(NSString *)msg {
-  [self commentEvent:type code:code msg:msg percent:@""];
-}
+- (void)commentEvent:(NSString *)type taskId:(NSString *)taskId code:(int)code msg:(NSString *)msg percent:(NSString *)percent {
+    NSMutableDictionary *params = @{}.mutableCopy;
+    params[kType] = type;
+    params[kCode] = [NSString stringWithFormat:@"%d", code];
+    params[kMsg] = msg;
+    params[kTaskId] = taskId;
+    params[kPercent] = percent;
 
-- (void)commentEvent:(NSString *)type code:(int)code msg:(NSString *)msg percent:(NSString *)percent {
-  NSMutableDictionary *params = @{}.mutableCopy;
-  params[kType] = type;
-  params[kCode] = [NSString stringWithFormat:@"%d", code];
-  params[kMsg] = msg;
-  params[kTaskId] = self.taskId;
-  params[kPercent] = percent;
-  NSLog(@"返回commentEvent%@", params );
-  if (_hasListener) {
-      [self sendEventWithName:qiniuEvent body:params];
-  }
+    NSLog(@"返回commentEvent: %@", params);
 
+    if (_hasListener) {
+        [self sendEventWithName:qiniuEvent body:params];
+    }
 }
 
 + (BOOL)requiresMainQueueSetup {
