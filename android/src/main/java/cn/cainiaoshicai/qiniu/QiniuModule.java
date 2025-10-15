@@ -72,7 +72,7 @@ public class QiniuModule extends ReactContextBaseJavaModule implements IQNEngine
 
     @Override
     public String getName() {
-        return "RCTQiniu";
+        return "Qiniu";
     }
 
     /**
