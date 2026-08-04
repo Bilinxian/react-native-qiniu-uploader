@@ -32,7 +32,7 @@ interface EmitterParams {
   // 可以扩展其他事件类型
 }
 
-let listener: EmitterSubscription;
+let listener: EmitterSubscription | undefined;
 
 export const QNEngine = {
 
@@ -62,6 +62,7 @@ export const QNEngine = {
     );
   },
   removeEmitter() {
-    listener && listener.remove();
+    listener?.remove();
+    listener = undefined;
   }
 };

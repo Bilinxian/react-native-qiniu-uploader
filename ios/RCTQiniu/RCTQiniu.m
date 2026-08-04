@@ -56,12 +56,33 @@ RCT_EXPORT_MODULE();
 
 - (void)startObserving
 {
-    _hasListener = YES;
+    self.hasListener = YES;
 }
 
 - (void)stopObserving
 {
-    _hasListener = NO;
+    // 仅停止向 JS 发事件；勿取消进行中的上传（eventEmitter 重绑会触发 stopObserving）
+    self.hasListener = NO;
+}
+
+- (void)invalidate
+{
+    self.hasListener = NO;
+    [self pauseAllTasksAndClear];
+    [super invalidate];
+}
+
+/** 暂停并清空全部任务，促使 cancellationSignal 尽快结束上传 */
+- (void)pauseAllTasksAndClear
+{
+    NSArray<UploadTask *> *tasks;
+    @synchronized (self) {
+        tasks = [self.taskMap.allValues copy];
+        [self.taskMap removeAllObjects];
+    }
+    for (UploadTask *task in tasks) {
+        task.isPaused = YES;
+    }
 }
 
 #pragma mark start upload file
@@ -73,7 +94,9 @@ RCT_EXPORT_METHOD(startTask:(NSDictionary *)options resolve:(RCTPromiseResolveBl
     NSNumber *isAsyncTask = options[@"isAsyncTask"] ?: @0;
 
     UploadTask *task = [[UploadTask alloc] initWithId:taskId filePath:filePath upKey:upKey upToken:upToken];
-    self.taskMap[taskId] = task;
+    @synchronized (self) {
+        self.taskMap[taskId] = task;
+    }
 
     if ([self checkParams:task]) {
         if ([isAsyncTask intValue] == 1) {
@@ -89,7 +112,10 @@ RCT_EXPORT_METHOD(startTask:(NSDictionary *)options resolve:(RCTPromiseResolveBl
 
 #pragma mark resume upload task
 RCT_EXPORT_METHOD(resumeTask:(NSString *)taskId) {
-    UploadTask *task = self.taskMap[taskId];
+    UploadTask *task = nil;
+    @synchronized (self) {
+        task = self.taskMap[taskId];
+    }
     if (task) {
         task.isPaused = NO;
         [self uploadTask:task resolve:nil rejecter:nil];
@@ -98,7 +124,10 @@ RCT_EXPORT_METHOD(resumeTask:(NSString *)taskId) {
 
 #pragma mark pause upload task
 RCT_EXPORT_METHOD(pauseTask:(NSString *)taskId) {
-    UploadTask *task = self.taskMap[taskId];
+    UploadTask *task = nil;
+    @synchronized (self) {
+        task = self.taskMap[taskId];
+    }
     if (task) {
         task.isPaused = YES;
     }
@@ -106,7 +135,13 @@ RCT_EXPORT_METHOD(pauseTask:(NSString *)taskId) {
 
 #pragma mark remove upload task
 RCT_EXPORT_METHOD(removeTask:(NSString *)taskId) {
-    [self.taskMap removeObjectForKey:taskId];
+    @synchronized (self) {
+        UploadTask *task = self.taskMap[taskId];
+        if (task) {
+            task.isPaused = YES;
+        }
+        [self.taskMap removeObjectForKey:taskId];
+    }
 }
 
 /**
@@ -120,7 +155,9 @@ RCT_EXPORT_METHOD(removeTask:(NSString *)taskId) {
         builder.zone = [QNAutoZone new];
         builder.chunkSize = 512 * 1024;
         builder.timeoutInterval = 120;
+        // 保留并发分片（视频上传需要）；进度回调已切主线程并做空判（WSB-1NH）
         builder.useConcurrentResumeUpload = YES;
+        builder.concurrentTaskCount = 3;
         builder.putThreshold = 512 * 1024;
         builder.resumeUploadVersion = QNResumeUploadVersionV2;
     }];
@@ -159,16 +196,22 @@ RCT_EXPORT_METHOD(removeTask:(NSString *)taskId) {
 
     QNUploadOption *uploadOption = [[QNUploadOption alloc] initWithMime:nil
                                                       progressHandler:^(NSString *key, float percent) {
-        __strong typeof(weakSelf) strongSelf = weakSelf;
-        __strong UploadTask *strongTask = weakTask;
-        NSString *per = [NSString stringWithFormat:@"%.2f", percent];
-        [strongSelf commentEvent:onProgress taskId:strongTask.taskId code:kSuccess msg:key percent:per];
+        // 并发分片回调可能不在主线程，统一派发并做空判，避免 UAF（WSB-1NH）
+        dispatch_async(dispatch_get_main_queue(), ^{
+            __strong typeof(weakSelf) strongSelf = weakSelf;
+            __strong UploadTask *strongTask = weakTask;
+            if (!strongSelf || !strongTask || !strongSelf.hasListener || strongTask.isPaused) {
+                return;
+            }
+            NSString *per = [NSString stringWithFormat:@"%.2f", percent];
+            [strongSelf commentEvent:onProgress taskId:strongTask.taskId code:kSuccess msg:key ?: @"" percent:per];
+        });
     }
                                                                params:nil
                                                              checkCrc:NO
                                                    cancellationSignal:^BOOL() {
         __strong UploadTask *strongTask = weakTask;
-        return strongTask.isPaused;
+        return strongTask == nil || strongTask.isPaused;
     }];
 
     if (!self.upManager) {
@@ -176,26 +219,36 @@ RCT_EXPORT_METHOD(removeTask:(NSString *)taskId) {
     }
 
     [self.upManager putFile:task.filePath key:task.upKey token:task.upToken complete:^(QNResponseInfo *info, NSString *key, NSDictionary *resp) {
-        __strong typeof(weakSelf) strongSelf = weakSelf;
-        __strong UploadTask *strongTask = weakTask;
-
-        if (info.isOK) {
-            if (resolve) {
-                resolve(@"上传成功");
-            } else {
-                [strongSelf commentEvent:onComplete taskId:strongTask.taskId code:kSuccess msg:@"上传成功" percent:@""];
+        // complete 同样可能在后台线程，与 progress 一致切主线程再碰 RN/bridge（WSB-1NH）
+        dispatch_async(dispatch_get_main_queue(), ^{
+            __strong typeof(weakSelf) strongSelf = weakSelf;
+            __strong UploadTask *strongTask = weakTask;
+            if (!strongSelf || !strongTask) {
+                return;
             }
-        } else {
-            NSString *errorStr = info.error ? info.error.localizedDescription : @"未知错误";
-            if (reject) {
-                reject([NSString stringWithFormat:@"%d", info.statusCode], errorStr, nil);
-            } else {
-                [strongSelf commentEvent:onError taskId:strongTask.taskId code:info.statusCode msg:errorStr percent:@""];
-            }
-        }
 
-        // 上传完成后移除任务（可选）
-        [strongSelf.taskMap removeObjectForKey:strongTask.taskId];
+            NSString *taskId = strongTask.taskId;
+            if (info.isOK) {
+                if (resolve) {
+                    resolve(@"上传成功");
+                } else if (strongSelf.hasListener && taskId) {
+                    [strongSelf commentEvent:onComplete taskId:taskId code:kSuccess msg:@"上传成功" percent:@""];
+                }
+            } else {
+                NSString *errorStr = info.error ? info.error.localizedDescription : @"未知错误";
+                if (reject) {
+                    reject([NSString stringWithFormat:@"%d", info.statusCode], errorStr, nil);
+                } else if (strongSelf.hasListener && taskId) {
+                    [strongSelf commentEvent:onError taskId:taskId code:info.statusCode msg:errorStr percent:@""];
+                }
+            }
+
+            if (taskId) {
+                @synchronized (strongSelf) {
+                    [strongSelf.taskMap removeObjectForKey:taskId];
+                }
+            }
+        });
     } option:uploadOption];
 }
 
@@ -205,18 +258,17 @@ RCT_EXPORT_METHOD(removeTask:(NSString *)taskId) {
 }
 
 - (void)commentEvent:(NSString *)type taskId:(NSString *)taskId code:(int)code msg:(NSString *)msg percent:(NSString *)percent {
-    NSMutableDictionary *params = @{}.mutableCopy;
-    params[kType] = type;
-    params[kCode] = [NSString stringWithFormat:@"%d", code];
-    params[kMsg] = msg;
-    params[kTaskId] = taskId;
-    params[kPercent] = percent;
-
-    NSLog(@"返回commentEvent: %@", params);
-
-    if (_hasListener) {
-        [self sendEventWithName:qiniuEvent body:params];
+    if (!self.hasListener || taskId.length == 0) {
+        return;
     }
+    NSMutableDictionary *params = @{}.mutableCopy;
+    params[kType] = type ?: @"";
+    params[kCode] = [NSString stringWithFormat:@"%d", code];
+    params[kMsg] = msg ?: @"";
+    params[kTaskId] = taskId;
+    params[kPercent] = percent ?: @"";
+
+    [self sendEventWithName:qiniuEvent body:params];
 }
 
 + (BOOL)requiresMainQueueSetup {
