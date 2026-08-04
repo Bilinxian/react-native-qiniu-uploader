@@ -219,33 +219,36 @@ RCT_EXPORT_METHOD(removeTask:(NSString *)taskId) {
     }
 
     [self.upManager putFile:task.filePath key:task.upKey token:task.upToken complete:^(QNResponseInfo *info, NSString *key, NSDictionary *resp) {
-        __strong typeof(weakSelf) strongSelf = weakSelf;
-        __strong UploadTask *strongTask = weakTask;
-        if (!strongSelf || !strongTask) {
-            return;
-        }
+        // complete 同样可能在后台线程，与 progress 一致切主线程再碰 RN/bridge（WSB-1NH）
+        dispatch_async(dispatch_get_main_queue(), ^{
+            __strong typeof(weakSelf) strongSelf = weakSelf;
+            __strong UploadTask *strongTask = weakTask;
+            if (!strongSelf || !strongTask) {
+                return;
+            }
 
-        NSString *taskId = strongTask.taskId;
-        if (info.isOK) {
-            if (resolve) {
-                resolve(@"上传成功");
-            } else if (strongSelf.hasListener && taskId) {
-                [strongSelf commentEvent:onComplete taskId:taskId code:kSuccess msg:@"上传成功" percent:@""];
+            NSString *taskId = strongTask.taskId;
+            if (info.isOK) {
+                if (resolve) {
+                    resolve(@"上传成功");
+                } else if (strongSelf.hasListener && taskId) {
+                    [strongSelf commentEvent:onComplete taskId:taskId code:kSuccess msg:@"上传成功" percent:@""];
+                }
+            } else {
+                NSString *errorStr = info.error ? info.error.localizedDescription : @"未知错误";
+                if (reject) {
+                    reject([NSString stringWithFormat:@"%d", info.statusCode], errorStr, nil);
+                } else if (strongSelf.hasListener && taskId) {
+                    [strongSelf commentEvent:onError taskId:taskId code:info.statusCode msg:errorStr percent:@""];
+                }
             }
-        } else {
-            NSString *errorStr = info.error ? info.error.localizedDescription : @"未知错误";
-            if (reject) {
-                reject([NSString stringWithFormat:@"%d", info.statusCode], errorStr, nil);
-            } else if (strongSelf.hasListener && taskId) {
-                [strongSelf commentEvent:onError taskId:taskId code:info.statusCode msg:errorStr percent:@""];
-            }
-        }
 
-        if (taskId) {
-            @synchronized (strongSelf) {
-                [strongSelf.taskMap removeObjectForKey:taskId];
+            if (taskId) {
+                @synchronized (strongSelf) {
+                    [strongSelf.taskMap removeObjectForKey:taskId];
+                }
             }
-        }
+        });
     } option:uploadOption];
 }
 
