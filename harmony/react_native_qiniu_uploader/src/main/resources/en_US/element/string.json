@@ -1,0 +1,16 @@
+{
+  "string": [
+    {
+      "name": "module_desc",
+      "value": "module description"
+    },
+    {
+      "name": "QiniuAbility_desc",
+      "value": "description"
+    },
+    {
+      "name": "QiniuAbility_label",
+      "value": "label"
+    }
+  ]
+}

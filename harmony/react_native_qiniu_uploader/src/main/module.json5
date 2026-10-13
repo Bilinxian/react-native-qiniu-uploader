@@ -1,0 +1,8 @@
+{
+  "module": {
+    "name": "react_native_qiniu_uploader",
+    "type": "har",
+    "deviceTypes": ["default"]
+
+  }
+}

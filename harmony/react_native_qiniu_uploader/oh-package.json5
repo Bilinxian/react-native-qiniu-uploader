@@ -1,0 +1,15 @@
+{
+  "name": "react-native-qiniu-uploader",
+  "version": "1.0.0",
+  "description": "Please describe the basic information.",
+  "types": "",
+  "main": "index.ets",
+  "author": "",
+  "license": "",
+  "dependencies": {
+    "@rnoh/react-native-openharmony": "0.72.143",
+    "@qiniu/upload": "1.0.2"
+  },
+  "devDependencies": {},
+  "dynamicDependencies": {}
+}
