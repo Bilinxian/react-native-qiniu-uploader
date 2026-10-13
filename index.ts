@@ -1,38 +1,11 @@
-import {
-  NativeModules,
-  NativeEventEmitter, EmitterSubscription
-} from 'react-native';
+import {NativeEventEmitter, EmitterSubscription} from 'react-native';
 
-const {Qiniu} = NativeModules
+import Qiniu from './src/index'
+import {uploadParams, onNativeEvent, onEvent} from './src/type'
+
 const qnEmitter = new NativeEventEmitter(Qiniu);
-type uploadParams = {
-  id: string
-  filePath: string
-  upKey: string
-  upToken: string
-  isAsyncTask?: boolean
-}
 
-interface EventType {
-  type: 'onProgress' | 'onComplete' | 'onError';
-
-  [key: string]: any; // 其他动态字段
-}
-
-type eventParams = {
-  code: string
-  msg: string
-  percent?: string
-}
-
-interface EmitterParams {
-  onComplete?: (event: eventParams) => void; // 根据实际数据结构调整
-  onError?: (error: eventParams) => void;
-  onProgress?: (event: eventParams) => void
-  // 可以扩展其他事件类型
-}
-
-let listener: EmitterSubscription;
+let listener: EmitterSubscription | undefined;
 
 export const QNEngine = {
 
@@ -49,19 +22,24 @@ export const QNEngine = {
   pauseTask() {
     Qiniu.pauseTask()
   },
-  eventEmitter(fnConf: EmitterParams) {
+  eventEmitter({onComplete, onError, onProgress}: onEvent) {
     this.removeEmitter();
-    listener = qnEmitter.addListener('qiniuEvent', (event) => {
-        const eventType = event.type; // 例如 'onComplete' 或 'onError'
-        const callback = fnConf[eventType as keyof EmitterParams]; // 动态获取回调
-
-        if (callback) {
-          callback(event); // 执行对应的回调
+    listener = qnEmitter.addListener('qiniuEvent', (event: onNativeEvent) => {
+        switch (event.type) {
+          case 'onProgress':
+            onProgress && onProgress(event)
+            break
+          case 'onError':
+            onError && onError(event)
+            break
+          case 'onComplete':
+            onComplete && onComplete(event)
+            break
         }
       }
     );
   },
   removeEmitter() {
-    listener && listener.remove();
+    listener?.remove();
   }
 };
