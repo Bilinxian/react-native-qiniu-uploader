@@ -7,7 +7,7 @@
   "author": "",
   "license": "",
   "dependencies": {
-    "@rnoh/react-native-openharmony": "0.72.143",
+    "@rnoh/react-native-openharmony": "0.72.144",
     "@qiniu/upload": "1.0.2"
   },
   "devDependencies": {},

@@ -31,10 +31,13 @@ export class QiniuTurboModule extends TurboModule {
 
   startTask(params: uploadParams): Promise<string> {
     const id = params.id;
-    const filePath = params.filePath;
+    let filePath = params.filePath;
     const upKey = params.upKey;
     const upToken = params.upToken;
     const isAsyncTask = params.isAsyncTask;
+    if (filePath[0] === '/') {
+      filePath = `file://${filePath}`;
+    }
     const file = UploadFile.fromUri(filePath)
     file.key = upKey
     return this.startUploadTask(file, upToken, id, isAsyncTask)
